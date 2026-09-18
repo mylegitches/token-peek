@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TokenPeek/TokenPeek.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TokenPeek.Tests/TokenPeek.Tests.csproj" />
+  </Folder>
+</Solution>
