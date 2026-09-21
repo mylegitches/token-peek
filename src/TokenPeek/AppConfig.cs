@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Drawing;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Win32;
 
 namespace TokenPeek;
@@ -130,6 +132,43 @@ public sealed class AppConfig
         }
     }
 
+    // ── Icon colours ────────────────────────────────────────────────────────────
+
+    // Well-known icon keys (provider – window).
+    public const string KeyOllamaSession = "Ollama-Session";
+    public const string KeyOllamaWeekly  = "Ollama-Weekly";
+
+    private static readonly Dictionary<string, IconColorEntry> DefaultColors = new()
+    {
+        [KeyOllamaSession] = new("#1E6FC8", "#FFFFFF"),
+        [KeyOllamaWeekly]  = new("#1A8A42", "#FFFFFF"),
+    };
+
+    /// <summary>
+    /// Returns the configured <see cref="IconColorEntry"/> for <paramref name="iconKey"/>,
+    /// or the built-in default if the user has not customised it.
+    /// </summary>
+    public IconColorEntry GetIconColors(string iconKey)
+    {
+        if (_data.IconColors is not null && _data.IconColors.TryGetValue(iconKey, out var entry))
+            return entry;
+        return DefaultColors.TryGetValue(iconKey, out var def) ? def : new("#444444", "#FFFFFF");
+    }
+
+    /// <summary>Persists a colour override for one icon.</summary>
+    public void SetIconColors(string iconKey, IconColorEntry entry)
+    {
+        _data.IconColors ??= new Dictionary<string, IconColorEntry>();
+        _data.IconColors[iconKey] = entry;
+        Save();
+    }
+
+    /// <summary>Removes a colour override, reverting to the built-in default.</summary>
+    public void ResetIconColors(string iconKey)
+    {
+        if (_data.IconColors?.Remove(iconKey) == true) Save();
+    }
+
     // ── DTO ────────────────────────────────────────────────────────────────────
 
     private sealed class ConfigData
@@ -137,5 +176,27 @@ public sealed class AppConfig
         public bool   ShowSession  { get; set; } = true;
         public bool   ShowWeekly   { get; set; } = true;
         public string? EncryptedKey { get; set; }
+        public Dictionary<string, IconColorEntry>? IconColors { get; set; }
+    }
+}
+
+// ── Value type ──────────────────────────────────────────────────────────────────
+
+/// <summary>Background / text colour pair stored as CSS hex strings.</summary>
+public sealed class IconColorEntry
+{
+    [JsonConstructor]
+    public IconColorEntry(string bg, string text) { Bg = bg; Text = text; }
+
+    public string Bg   { get; set; }
+    public string Text { get; set; }
+
+    public Color BgColor   => ParseColor(Bg,   Color.DimGray);
+    public Color TextColor => ParseColor(Text, Color.White);
+
+    private static Color ParseColor(string hex, Color fallback)
+    {
+        try { return System.Drawing.ColorTranslator.FromHtml(hex); }
+        catch { return fallback; }
     }
 }

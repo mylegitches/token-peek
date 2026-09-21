@@ -162,9 +162,16 @@ public sealed class HoverPopupForm : Form
         _sessionLabel.Text = $"Session  {snap.Session.UsedPercent}% used";
         _sessionReset.Text = ResetClock.FormatReset(ResetClock.NextSessionReset(now), tz);
 
-        // Weekly
-        _weeklyLabel.Text = $"Weekly   {snap.Weekly.UsedPercent}% used";
-        _weeklyReset.Text = ResetClock.FormatReset(ResetClock.NextWeeklyReset(now), tz);
+        // Weekly (may be null for single-window providers like Cursor)
+        if (snap.Weekly is { } weekly)
+        {
+            _weeklyLabel.Text = $"Weekly   {weekly.UsedPercent}% used";
+            _weeklyReset.Text = weekly.ResetAt.HasValue
+                ? ResetClock.FormatReset(weekly.ResetAt.Value, tz)
+                : ResetClock.FormatReset(ResetClock.NextWeeklyReset(now), tz);
+        }
+        _weeklyLabel.Visible = snap.Weekly is not null;
+        _weeklyReset.Visible = snap.Weekly is not null;
 
         // Models
         _modelsPanel.Controls.Clear();

@@ -64,8 +64,9 @@ public sealed class TrayApplicationContext : ApplicationContext
             new ToolStripSeparator(),
             new ToolStripMenuItem("Open Ollama settings", null, (_, _) => OpenUrl("https://ollama.com/settings")),
             new ToolStripSeparator(),
-            new ToolStripMenuItem("Refresh",  null, (_, _) => _ = RefreshAsync()),
-            new ToolStripMenuItem("API key…", null, (_, _) => OpenSettingsOnUiThread()),
+            new ToolStripMenuItem("Refresh",   null, (_, _) => _ = RefreshAsync()),
+            new ToolStripMenuItem("API key…",  null, (_, _) => OpenSettingsOnUiThread()),
+            new ToolStripMenuItem("Colors…",   null, (_, _) => OpenColorSettings()),
             _mnuStartup,
             new ToolStripSeparator(),
             new ToolStripMenuItem("Exit", null, (_, _) => ExitApp()),
@@ -195,31 +196,36 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void ApplySnapshot(UsageSnapshot snap)
     {
         // Session icon.
-        var newSession = TrayIconRenderer.Create(snap.Session.Usage, isSession: true);
+        var newSession = TrayIconRenderer.Create(snap.Session.Usage,
+            _config.GetIconColors(AppConfig.KeyOllamaSession));
         var oldSession = _sessionIconHandle;
         _sessionIcon.Icon  = newSession;
         _sessionIconHandle = newSession;
         _sessionIcon.Text  = TruncTooltip($"Session: {snap.Session.UsedPercent}% used");
         oldSession?.Dispose();
 
-        // Weekly icon.
-        var newWeekly = TrayIconRenderer.Create(snap.Weekly.Usage, isSession: false);
-        var oldWeekly = _weeklyIconHandle;
-        _weeklyIcon.Icon  = newWeekly;
-        _weeklyIconHandle = newWeekly;
-        _weeklyIcon.Text  = TruncTooltip($"Weekly: {snap.Weekly.UsedPercent}% used");
-        oldWeekly?.Dispose();
+        // Weekly icon — snap.Weekly is nullable; guard accordingly.
+        if (snap.Weekly is { } weekly)
+        {
+            var newWeekly = TrayIconRenderer.Create(weekly.Usage,
+                _config.GetIconColors(AppConfig.KeyOllamaWeekly));
+            var oldWeekly = _weeklyIconHandle;
+            _weeklyIcon.Icon  = newWeekly;
+            _weeklyIconHandle = newWeekly;
+            _weeklyIcon.Text  = TruncTooltip($"Weekly: {weekly.UsedPercent}% used");
+            oldWeekly?.Dispose();
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void SetPlaceholderIcons()
     {
-        var s = TrayIconRenderer.Create(1.0, isSession: true);
+        var s = TrayIconRenderer.Create(0.0, _config.GetIconColors(AppConfig.KeyOllamaSession));
         _sessionIcon.Icon  = s;
         _sessionIconHandle = s;
 
-        var w = TrayIconRenderer.Create(1.0, isSession: false);
+        var w = TrayIconRenderer.Create(0.0, _config.GetIconColors(AppConfig.KeyOllamaWeekly));
         _weeklyIcon.Icon  = w;
         _weeklyIconHandle = w;
     }
@@ -231,6 +237,23 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
         catch { /* ignore */ }
+    }
+
+    private void OpenColorSettings()
+    {
+        foreach (Form f in Application.OpenForms)
+        {
+            if (f is ColorSettingsForm) { f.Activate(); return; }
+        }
+        var form = new ColorSettingsForm(_config, () =>
+        {
+            // Re-render icons immediately with the new colours.
+            if (_lastSnapshot is { } snap)
+                ApplySnapshot(snap);
+            else
+                SetPlaceholderIcons();
+        });
+        form.Show();
     }
 
     /// <summary>Always called on the UI thread.</summary>
